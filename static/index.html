@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Intelligent Code Review Coach — IBM Bob Hackathon</title>
+<style>
+  /* ── Reset & base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --border: #dde1e7;
+    --text: #161616;
+    --muted: #6f6f6f;
+    --accent: #0f62fe;
+    --accent-dark: #0043ce;
+    --critical: #da1e28;
+    --high: #ff832b;
+    --medium: #f1c21b;
+    --low: #42be65;
+    --info: #78a9ff;
+    --approve: #24a148;
+    --request: #da1e28;
+    --discuss: #f1c21b;
+    --badge-r: 4px;
+    --font: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', 'Cascadia Code', 'Fira Mono', monospace;
+  }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: #161616;
+    color: #fff;
+    padding: 0 24px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 4px rgba(0,0,0,.3);
+  }
+  header .logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 0.01em;
+  }
+  header .logo svg { flex-shrink: 0; }
+  header .tagline {
+    margin-left: auto;
+    font-size: 12px;
+    color: #a8b2be;
+  }
+
+  /* ── Layout ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--badge-r);
+    font-family: var(--font);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s, opacity .15s;
+  }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: var(--accent-dark); }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-ghost:hover:not(:disabled) { background: var(--bg); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  /* ── Textarea ── */
+  textarea {
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    background: #fafbfc;
+    color: var(--text);
+    resize: vertical;
+    line-height: 1.5;
+    outline: none;
+  }
+  textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(15,98,254,.2); }
+
+  /* ── Demo pills ── */
+  .demo-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .pill {
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1.5px solid var(--border);
+    background: #fff;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  .pill:hover { border-color: var(--accent); color: var(--accent); }
+  .pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* ── Severity badges ── */
+  .badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .badge-critical { background: var(--critical); color: #fff; }
+  .badge-high { background: var(--high); color: #fff; }
+  .badge-medium { background: var(--medium); color: #161616; }
+  .badge-low { background: var(--low); color: #fff; }
+  .badge-info { background: var(--info); color: #161616; }
+
+  /* ── Finding cards ── */
+  .findings-list { display: flex; flex-direction: column; gap: 12px; }
+  .finding {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .finding-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #fafbfc;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .finding-loc {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+  .cat-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .finding-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .finding-explanation { font-size: 13px; }
+  .finding-fix {
+    font-size: 12px;
+    background: #f0f7ff;
+    border-left: 3px solid var(--accent);
+    padding: 8px 10px;
+    border-radius: 0 4px 4px 0;
+  }
+  .finding-fix strong { color: var(--accent-dark); }
+  .matched-text {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    padding: 3px 7px;
+    border-radius: 3px;
+    word-break: break-all;
+    color: #856404;
+  }
+
+  /* ── Summary panel ── */
+  .summary-card { border-top: 3px solid var(--accent); }
+  .recommendation-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    margin-bottom: 12px;
+  }
+  .rec-approve { background: #defbe6; color: #0e6027; border: 1.5px solid var(--approve); }
+  .rec-request { background: #fff1f1; color: #a2191f; border: 1.5px solid var(--request); }
+  .rec-discuss { background: #fcf4d6; color: #744016; border: 1.5px solid var(--discuss); }
+  .rec-approve-notes { background: #e5f6ff; color: #003a6d; border: 1.5px solid #78a9ff; }
+
+  .stat-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0 14px; }
+  .stat-chip {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: #fafbfc;
+  }
+
+  .risk-list, .step-list {
+    margin: 4px 0 0 16px;
+    font-size: 13px;
+  }
+  .risk-list li { margin-bottom: 4px; color: #a2191f; }
+  .step-list li { margin-bottom: 4px; color: #005d5d; }
+
+  /* ── Empty / loading states ── */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .empty-state svg { display: block; margin: 0 auto 12px; opacity: .35; }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Progress bar ── */
+  .stats-bar { display: flex; gap: 2px; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 8px; }
+  .stats-bar span { display: block; transition: flex .5s; }
+
+  /* ── AI badge ── */
+  .ai-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 10px;
+    font-size: 11px; font-weight: 600;
+    background: #e8f0fe; color: #1a56db;
+    border: 1px solid #93c5fd;
+    margin-left: 8px;
+  }
+  .llm-narrative {
+    margin-top: 12px; padding: 10px 14px;
+    background: #f0f7ff;
+    border-left: 3px solid #3b82f6;
+    border-radius: 0 4px 4px 0;
+    font-size: 13px; font-style: italic; color: #1e3a5f;
+  }
+
+  /* ── Meta strip ── */
+  .meta-strip {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .meta-strip span { display: flex; align-items: center; gap: 4px; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 14px; }
+  .tab {
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color .15s;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Divider ── */
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: #161616; color: #fff;
+    padding: 10px 18px; border-radius: 6px;
+    font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,.2);
+    opacity: 0; pointer-events: none;
+    transition: opacity .3s;
+    z-index: 200;
+  }
+  #toast.show { opacity: 1; }
+
+  /* ── Language toggle ── */
+  .lang-toggle {
+    display: flex; align-items: center; gap: 2px;
+    background: #2a2a2a; border-radius: 4px; padding: 2px;
+    margin-left: auto;
+  }
+  .lang-btn {
+    padding: 3px 10px; border: none; border-radius: 3px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    background: transparent; color: #a8b2be;
+    transition: all .15s;
+  }
+  .lang-btn.active { background: #0f62fe; color: #fff; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="4" fill="#0f62fe"/>
+      <path d="M6 8h12M6 12h8M6 16h10" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    <span id="headerTitle">Intelligent Code Review Coach</span>
+  </div>
+  <div class="lang-toggle">
+    <button class="lang-btn active" id="langBtnEn" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" id="langBtnEs" onclick="setLang('es')">ES</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Input section -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title" id="inputCardTitle">Input — Paste a unified Git diff</div>
+
+    <div class="demo-pills" id="demoPills">
+      <span id="loadDemoLabel" style="font-size:12px;color:var(--muted);align-self:center;">Load demo:</span>
+    </div>
+
+    <textarea id="diffInput" rows="14"
+      placeholder="Paste a unified diff here (git diff output) …"></textarea>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;">
+      <button class="btn btn-primary" id="analyzeBtn" onclick="runAnalysis()">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 1.5a5.5 5.5 0 110 11 5.5 5.5 0 010-11zM7 5v4.5l3.5 2-.7 1.2L5.5 10V5H7z"/>
+        </svg>
+        <span id="analyzeBtnLabel">Analyze Diff</span>
+      </button>
+      <button class="btn btn-ghost btn-sm" id="clearBtn" onclick="clearAll()">Clear</button>
+      <span id="charCount" style="font-size:12px;color:var(--muted);margin-left:auto;"></span>
+    </div>
+  </div>
+
+  <!-- Results section -->
+  <div id="results" style="display:none;">
+
+    <!-- Summary card -->
+    <div class="card summary-card" style="margin-bottom:16px;" id="summaryCard">
+      <div class="card-title" id="summaryCardTitle">Review Summary</div>
+      <div id="summaryContent"></div>
+    </div>
+
+    <!-- Findings + meta -->
+    <div class="card" id="findingsCard">
+      <div class="card-title" id="findingsCardTitle">Findings</div>
+
+      <div class="tabs">
+        <button class="tab active" id="tabAll" onclick="switchTab('all')">All</button>
+        <button class="tab" id="tabCritical" onclick="switchTab('critical')">Critical</button>
+        <button class="tab" id="tabHigh" onclick="switchTab('high')">High</button>
+        <button class="tab" id="tabMedium" onclick="switchTab('medium')">Medium</button>
+        <button class="tab" id="tabLow" onclick="switchTab('low')">Low/Info</button>
+      </div>
+
+      <div id="findingsList"></div>
+
+      <div class="meta-strip" id="metaStrip"></div>
+    </div>
+
+  </div>
+
+  <!-- Loading state -->
+  <div id="loadingState" style="display:none;" class="card">
+    <div class="empty-state">
+      <div class="spinner"></div>
+      <span id="loadingMsg">Analyzing diff...</span>
+    </div>
+  </div>
+
+  <!-- Initial empty state -->
+  <div id="emptyState" class="card">
+    <div class="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V9l-6-6z"/>
+        <path d="M9 3v6h6M12 11v6M9 14h6"/>
+      </svg>
+      <div id="emptyStateMain">Paste a git diff above or load a demo, then click <strong>Analyze Diff</strong>.</div>
+      <div id="emptyStateSub" style="margin-top:6px;">Supports Python, JavaScript, and TypeScript files.</div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const SEVERITY_ORDER = ['critical','high','medium','low','info'];
+let currentFindings = [];
+let currentTab = 'all';
+let currentLang = 'en';
+
+// ── i18n string tables ──
+const UI_STRINGS = {
+  en: {
+    headerTitle:      'Intelligent Code Review Coach',
+    inputCardTitle:   'Input \u2014 Paste a unified Git diff',
+    loadDemoLabel:    'Load demo:',
+    analyzeBtnLabel:  'Analyze Diff',
+    clearBtn:         'Clear',
+    summaryCardTitle: 'Review Summary',
+    findingsCardTitle:'Findings',
+    tabAll:           'All',
+    tabCritical:      'Critical',
+    tabHigh:          'High',
+    tabMedium:        'Medium',
+    tabLow:           'Low/Info',
+    loadingMsg:       'Analyzing diff\u2026',
+    emptyStateMain:   'Paste a git diff above or load a demo, then click <strong>Analyze Diff</strong>.',
+    emptyStateSub:    'Supports Python, JavaScript, and TypeScript files.',
+    noFindingsTab:    'No findings in this category.',
+    filesReviewed:    'file(s) reviewed',
+    linesAnalyzed:    'added lines analyzed',
+    elapsed:          'ms',
+    findings:         'finding(s)',
+    mainRisks:        'Main Risks',
+    nextSteps:        'Suggested Next Steps',
+    noFindings:       'No findings',
+    aiBadge:          '\u2728 AI-enhanced',
+    recLabels: {
+      APPROVE:            'APPROVE',
+      APPROVE_WITH_NOTES: 'APPROVE WITH NOTES',
+      REQUEST_CHANGES:    'REQUEST CHANGES',
+      NEEDS_DISCUSSION:   'NEEDS DISCUSSION',
+    },
+  },
+  es: {
+    headerTitle:      'Asistente Inteligente de Revisi\u00f3n de C\u00f3digo',
+    inputCardTitle:   'Entrada \u2014 Pega un diff de Git unificado',
+    loadDemoLabel:    'Cargar demo:',
+    analyzeBtnLabel:  'Analizar Diff',
+    clearBtn:         'Limpiar',
+    summaryCardTitle: 'Resumen de revisi\u00f3n',
+    findingsCardTitle:'Hallazgos',
+    tabAll:           'Todos',
+    tabCritical:      'Cr\u00edtico',
+    tabHigh:          'Alto',
+    tabMedium:        'Medio',
+    tabLow:           'Bajo/Info',
+    loadingMsg:       'Analizando diff\u2026',
+    emptyStateMain:   'Pega un diff de git arriba o carga una demo, luego haz clic en <strong>Analizar Diff</strong>.',
+    emptyStateSub:    'Compatible con archivos Python, JavaScript y TypeScript.',
+    noFindingsTab:    'Sin hallazgos en esta categor\u00eda.',
+    filesReviewed:    'archivo(s) revisado(s)',
+    linesAnalyzed:    'l\u00edneas a\u00f1adidas analizadas',
+    elapsed:          'ms',
+    findings:         'hallazgo(s)',
+    mainRisks:        'Principales riesgos',
+    nextSteps:        'Pr\u00f3ximos pasos sugeridos',
+    noFindings:       'Sin hallazgos',
+    aiBadge:          '\u2728 Mejorado con IA',
+    recLabels: {
+      APPROVE:            'APROBAR',
+      APPROVE_WITH_NOTES: 'APROBAR CON NOTAS',
+      REQUEST_CHANGES:    'SOLICITAR CAMBIOS',
+      NEEDS_DISCUSSION:   'REQUIERE DISCUSI\u00d3N',
+    },
+  },
+};
+
+const CATEGORY_LABELS_JS = {
+  en: {
+    secrets:                   'Exposed Secret',
+    unsafe_input:              'Unsafe Input',
+    error_handling:            'Error Handling',
+    likely_bug:                'Likely Bug',
+    weak_tests:                'Weak Tests',
+    logging_sensitive:         'Sensitive Logging',
+    dangerous_deserialization: 'Dangerous Deserialization',
+    path_traversal:            'Path Traversal',
+    insecure_dependency:       'Insecure Dependency',
+  },
+  es: {
+    secrets:                   'Secreto expuesto',
+    unsafe_input:              'Entrada no segura',
+    error_handling:            'Manejo de errores',
+    likely_bug:                'Posible error',
+    weak_tests:                'Pruebas d\u00e9biles',
+    logging_sensitive:         'Datos sensibles en logs',
+    dangerous_deserialization: 'Deserializaci\u00f3n peligrosa',
+    path_traversal:            'Traversal de rutas',
+    insecure_dependency:       'Dependencia insegura',
+  },
+};
+
+function setLang(lang) {
+  currentLang = lang;
+  document.getElementById('langBtnEn').classList.toggle('active', lang === 'en');
+  document.getElementById('langBtnEs').classList.toggle('active', lang === 'es');
+  const s = UI_STRINGS[lang] || UI_STRINGS['en'];
+  document.getElementById('headerTitle').textContent      = s.headerTitle;
+  document.getElementById('inputCardTitle').textContent   = s.inputCardTitle;
+  document.getElementById('loadDemoLabel').textContent    = s.loadDemoLabel;
+  document.getElementById('analyzeBtnLabel').textContent  = s.analyzeBtnLabel;
+  document.getElementById('clearBtn').textContent         = s.clearBtn;
+  document.getElementById('summaryCardTitle').textContent = s.summaryCardTitle;
+  document.getElementById('findingsCardTitle').textContent= s.findingsCardTitle;
+  document.getElementById('tabAll').textContent           = s.tabAll;
+  document.getElementById('tabCritical').textContent      = s.tabCritical;
+  document.getElementById('tabHigh').textContent          = s.tabHigh;
+  document.getElementById('tabMedium').textContent        = s.tabMedium;
+  document.getElementById('tabLow').textContent           = s.tabLow;
+  document.getElementById('loadingMsg').textContent       = s.loadingMsg;
+  document.getElementById('emptyStateMain').innerHTML     = s.emptyStateMain;
+  document.getElementById('emptyStateSub').textContent    = s.emptyStateSub;
+  // Re-render results in new language if visible
+  if (currentFindings.length || document.getElementById('results').style.display !== 'none') {
+    renderFindings(currentFindings);
+  }
+}
+
+// ── Bootstrap: load demo list ──
+(async function loadDemos() {
+  try {
+    const res = await fetch('/api/demos');
+    const demos = await res.json();
+    const container = document.getElementById('demoPills');
+    demos.forEach(d => {
+      const pill = document.createElement('button');
+      pill.className = 'pill';
+      pill.textContent = d.title;
+      pill.dataset.id = d.id;
+      pill.onclick = () => loadDemo(d.id, pill);
+      container.appendChild(pill);
+    });
+  } catch(e) { console.warn('Could not load demos', e); }
+})();
+
+async function loadDemo(id, pill) {
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+  try {
+    const res = await fetch('/api/demos/' + id);
+    const demo = await res.json();
+    document.getElementById('diffInput').value = demo.diff;
+    updateCharCount();
+  } catch(e) { showToast('Failed to load demo'); }
+}
+
+function updateCharCount() {
+  const v = document.getElementById('diffInput').value;
+  document.getElementById('charCount').textContent =
+    v.length ? `${v.length.toLocaleString()} chars` : '';
+}
+document.getElementById('diffInput').addEventListener('input', updateCharCount);
+
+function clearAll() {
+  document.getElementById('diffInput').value = '';
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('emptyState').style.display = '';
+  document.getElementById('charCount').textContent = '';
+}
+
+async function runAnalysis() {
+  const diff = document.getElementById('diffInput').value.trim();
+  if (!diff) { showToast(currentLang === 'es' ? 'Por favor pega un diff primero.' : 'Please paste a diff first.'); return; }
+
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('loadingState').style.display = '';
+  document.getElementById('analyzeBtn').disabled = true;
+
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ diff, lang: currentLang }),
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Analysis failed'); return; }
+    renderResults(data);
+  } catch(e) {
+    showToast('Network error: ' + e.message);
+  } finally {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('analyzeBtn').disabled = false;
+  }
+}
+
+function renderResults(data) {
+  currentFindings = data.findings || [];
+  renderSummary(data.summary, data);
+  currentTab = 'all';
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.tab').classList.add('active');
+  renderFindings(currentFindings);
+  renderMeta(data);
+  document.getElementById('results').style.display = '';
+  document.getElementById('emptyState').style.display = 'none';
+}
+
+function renderSummary(s, data) {
+  const ui = UI_STRINGS[currentLang] || UI_STRINGS['en'];
+  const rec = s.recommendation;
+  const recLabels = ui.recLabels;
+  let recClass = 'rec-discuss', recIcon = '&#9888;', recLabel = recLabels[rec] || rec;
+  if (rec === 'APPROVE') { recClass = 'rec-approve'; recIcon = '&#10003;'; }
+  else if (rec === 'APPROVE_WITH_NOTES') { recClass = 'rec-approve-notes'; recIcon = '&#10003;'; }
+  else if (rec === 'REQUEST_CHANGES') { recClass = 'rec-request'; recIcon = '&#10007;'; }
+
+  const bySev = s.by_severity || {};
+  const chips = SEVERITY_ORDER
+    .filter(sv => bySev[sv] > 0)
+    .map(sv => `<span class="stat-chip badge-${sv}" style="border-color:transparent;">${bySev[sv]} ${sv}</span>`)
+    .join('');
+
+  const risks = (s.main_risks||[]).map(r=>`<li>${escHtml(r)}</li>`).join('');
+  const steps = (s.next_steps||[]).map(r=>`<li>${escHtml(r)}</li>`).join('');
+
+  const aiBlock = (data.llm_enhanced && s.llm_narrative)
+    ? `<div class="llm-narrative">${escHtml(s.llm_narrative)}</div>`
+    : '';
+  const aiBadge = data.llm_enhanced
+    ? `<span class="ai-badge">${ui.aiBadge}</span>`
+    : '';
+
+  document.getElementById('summaryContent').innerHTML = `
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:10px;">
+      <div class="recommendation-badge ${recClass}">${recIcon} ${recLabel}</div>
+      ${aiBadge}
+    </div>
+    <p style="font-size:13px;margin-bottom:10px;">${escHtml(s.recommendation_reason)}</p>
+    ${aiBlock}
+    <div class="stat-row">${chips || `<span style="color:var(--muted);font-size:12px;">${ui.noFindings}</span>`}</div>
+    ${risks ? `<div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">${ui.mainRisks}</div>
+    <ul class="risk-list">${risks}</ul>` : ''}
+    ${steps ? `<div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px;">${ui.nextSteps}</div>
+    <ul class="step-list">${steps}</ul>` : ''}
+  `;
+}
+
+function renderFindings(findings) {
+  const ui = UI_STRINGS[currentLang] || UI_STRINGS['en'];
+  const catLabels = CATEGORY_LABELS_JS[currentLang] || CATEGORY_LABELS_JS['en'];
+  const filtered = currentTab === 'all' ? findings
+    : currentTab === 'low' ? findings.filter(f => f.severity === 'low' || f.severity === 'info')
+    : findings.filter(f => f.severity === currentTab);
+
+  const fixLabel = currentLang === 'es' ? 'Correcci\u00f3n recomendada:' : 'Recommended Fix:';
+
+  if (!filtered.length) {
+    document.getElementById('findingsList').innerHTML = `
+      <div class="empty-state" style="padding:24px;">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        ${ui.noFindingsTab}
+      </div>`;
+    return;
+  }
+
+  document.getElementById('findingsList').innerHTML = `<div class="findings-list">${
+    filtered.map(f => `
+      <div class="finding">
+        <div class="finding-header">
+          <span class="badge badge-${f.severity}">${f.severity}</span>
+          <span class="cat-label">${escHtml(catLabels[f.category] || f.category)}</span>
+          <span class="finding-loc">${escHtml(f.filename)}${f.line_number ? ':' + f.line_number : ''}</span>
+        </div>
+        <div class="finding-body">
+          <div class="finding-explanation">${escHtml(f.explanation)}</div>
+          ${f.matched_text ? `<code class="matched-text">${escHtml(f.matched_text)}</code>` : ''}
+          <div class="finding-fix"><strong>${fixLabel}</strong> ${escHtml(f.recommended_fix)}</div>
+        </div>
+      </div>
+    `).join('')
+  }</div>`;
+}
+
+function renderMeta(data) {
+  const ui = UI_STRINGS[currentLang] || UI_STRINGS['en'];
+  document.getElementById('metaStrip').innerHTML = `
+    <span>&#128196; ${(data.files_reviewed||[]).length} ${ui.filesReviewed}: ${(data.files_reviewed||[]).map(escHtml).join(', ')}</span>
+    <span>&#128269; ${data.lines_analyzed || 0} ${ui.linesAnalyzed}</span>
+    <span>&#9201; ${data.elapsed_ms || 0} ${ui.elapsed}</span>
+    <span>&#128270; ${(data.findings||[]).length} ${ui.findings}</span>
+  `;
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  renderFindings(currentFindings);
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
