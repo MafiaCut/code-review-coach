@@ -6,10 +6,11 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from analyzer.i18n import (
-    resolve_lang, translate_finding, get_rec_reason,
-    CATEGORY_LABELS, SUPPORTED_LANGS,
+    resolve_lang, translate_finding, get_rec_reason, category_label,
+    CATEGORY_CATALOG, CATEGORY_LABELS, SUPPORTED_LANGS,
 )
 from analyzer.engine import analyze_diff, result_to_dict
+from analyzer.rules import RULE_REGISTRY
 
 
 # ── resolve_lang ────────────────────────────────────────────────
@@ -56,6 +57,16 @@ class TestCategoryLabels:
         es = CATEGORY_LABELS["es"]
         diffs = [k for k in en if en[k] != es[k]]
         assert len(diffs) > 0
+
+    def test_rule_registry_categories_exist_in_catalog(self):
+        assert {rule.category for rule in RULE_REGISTRY} == set(CATEGORY_CATALOG)
+
+    def test_rule_ids_are_unique(self):
+        rule_ids = [rule.rule_id for rule in RULE_REGISTRY]
+        assert len(rule_ids) == len(set(rule_ids))
+
+    def test_category_label_falls_back_for_unknown_category(self):
+        assert category_label("custom_rule", "es") == "custom_rule"
 
 
 # ── translate_finding ─────────────────────────────────────────────
@@ -177,6 +188,12 @@ class TestEngineWithLang:
         for f in d["findings"]:
             assert isinstance(f["explanation"], str)
             assert len(f["explanation"]) > 0
+
+    def test_result_contains_localized_category_labels(self):
+        result = analyze_diff(DIRTY_DIFF, lang="es")
+        payload = result_to_dict(result, lang="es")
+        for finding in payload["findings"]:
+            assert finding["category_label"] == category_label(finding["category"], "es")
 
     def test_result_to_dict_es_findings_translated(self):
         result = analyze_diff(DIRTY_DIFF, lang="es")

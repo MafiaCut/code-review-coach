@@ -1,4 +1,4 @@
-"""
+"""Bundled clean-change demo.
 Demo example 2: A relatively clean change — utility functions with proper practices.
 This is entirely synthetic data with no real credentials or personal information.
 """

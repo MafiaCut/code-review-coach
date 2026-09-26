@@ -1,4 +1,9 @@
-"""Entry point for `python -m code_review_coach`."""
-from cli import main
+"""Backward-compatible launcher for ``python __main__.py``."""
+
 import sys
-sys.exit(main())
+
+from code_review_coach.cli import main
+
+
+if __name__ == "__main__":
+    sys.exit(main())

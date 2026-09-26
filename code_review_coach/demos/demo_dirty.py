@@ -1,4 +1,4 @@
-"""
+"""Bundled issue-rich demo.
 Demo example 1: A change with multiple clear issues across Python and TypeScript.
 This is entirely synthetic data with no real credentials or personal information.
 """

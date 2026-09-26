@@ -14,23 +14,11 @@ import urllib.request
 from typing import Optional
 
 from .engine import ReviewResult
+from .i18n import category_label
 
 logger = logging.getLogger(__name__)
 
 GITHUB_API = "https://api.github.com"
-
-_CAT_LABELS = {
-    "secrets":                   "Exposed Secret",
-    "unsafe_input":              "Unsafe Input",
-    "error_handling":            "Error Handling",
-    "likely_bug":                "Likely Bug",
-    "weak_tests":                "Weak Tests",
-    "logging_sensitive":         "Sensitive Logging",
-    "dangerous_deserialization": "Dangerous Deserialization",
-    "path_traversal":            "Path Traversal",
-    "insecure_dependency":       "Insecure Dependency",
-}
-
 
 def verify_signature(payload_bytes: bytes, secret: str, signature_header: str) -> bool:
     """
@@ -100,7 +88,7 @@ def _build_inline_comments(result: ReviewResult) -> list:
     for f in result.findings:
         if not f.line_number:
             continue
-        cat = _CAT_LABELS.get(f.category, f.category)
+        cat = category_label(f.category, "en")
         body_lines = [
             f"**[{f.severity.upper()}] {cat}**",
             "",

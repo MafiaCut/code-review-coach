@@ -18,7 +18,7 @@ from analyzer.rules import (
     rule_likely_bugs,
     rule_weak_tests,
 )
-from analyzer.parser import parse_diff, filter_supported
+from analyzer.parser import parse_diff, parse_diff_document, filter_supported
 from analyzer.engine import analyze_diff
 
 
@@ -298,6 +298,41 @@ diff --git a/config.yaml b/config.yaml
         assert all(dl.language == "python" for dl in lines)
         assert len(lines) == 1
 
+    def test_document_preserves_hunk_context_and_removals(self):
+        diff = """\
+--- a/app.py
++++ b/app.py
+@@ -4,2 +4,2 @@
+-old_value = 1
++new_value = 2
+ unchanged()
+"""
+        document = parse_diff_document(diff)
+        assert len(document.hunks) == 1
+        assert [line.kind for line in document.hunks[0].lines] == [
+            "removed", "added", "context",
+        ]
+        assert document.hunks[0].lines[0].old_line_number == 4
+        assert document.hunks[0].added_lines[0].line_number == 4
+
+    def test_quoted_filename_with_spaces(self):
+        diff = '--- "a/my file.py"\n+++ "b/my file.py"\n@@ -1 +1 @@\n-old\n+new\n'
+        assert parse_diff(diff)[0].filename == "my file.py"
+
+    def test_hunk_ids_are_distinct(self):
+        diff = """\
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-one
++first
+@@ -20 +20 @@
+-two
++second
+"""
+        lines = parse_diff(diff)
+        assert lines[0].hunk_id != lines[1].hunk_id
+
 
 # ─────────────────────────────────────────────
 # Engine integration tests
@@ -373,6 +408,32 @@ diff --git a/utils.py b/utils.py
     def test_lines_analyzed_count(self):
         result = analyze_diff(self.DIRTY_DIFF)
         assert result.lines_analyzed > 0
+
+    def test_unchanged_context_can_suppress_false_positive(self):
+        diff = """\
+--- a/client.py
++++ b/client.py
+@@ -5,2 +5,3 @@
++resp = requests.get(url)
+ resp.raise_for_status()
+ return resp.json()
+"""
+        result = analyze_diff(diff)
+        assert not any(f.category == "error_handling" for f in result.findings)
+
+    def test_context_does_not_cross_hunk_boundaries(self):
+        diff = """\
+--- a/client.py
++++ b/client.py
+@@ -5 +5,2 @@
++resp = requests.get(url)
+ return resp
+@@ -50 +51,2 @@
++resp.raise_for_status()
+ return resp.json()
+"""
+        result = analyze_diff(diff)
+        assert any(f.category == "error_handling" for f in result.findings)
 
     def test_untrusted_input_not_executed(self):
         """Verify that injected Python code in the diff is not executed."""

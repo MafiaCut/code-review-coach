@@ -9,7 +9,8 @@ a new dict entry in each section below.
 """
 from __future__ import annotations
 
-from typing import Dict, Tuple
+from dataclasses import dataclass
+from typing import Dict, Optional, Tuple
 
 SUPPORTED_LANGS = ("en", "es")
 DEFAULT_LANG = "en"
@@ -103,6 +104,54 @@ STEP_TEMPLATES: Dict[str, Dict[str, str]] = {
         "insecure_dependency":       "Actualiza las dependencias marcadas a las versiones minimas seguras indicadas en los hallazgos.",
     },
 }
+
+
+@dataclass(frozen=True)
+class CategoryMetadata:
+    """All localized presentation metadata for an analysis category."""
+
+    category_id: str
+    labels: Dict[str, str]
+    risks: Dict[str, str]
+    next_steps: Dict[str, str]
+
+
+CATEGORY_CATALOG: Dict[str, CategoryMetadata] = {
+    category_id: CategoryMetadata(
+        category_id=category_id,
+        labels={lang: CATEGORY_LABELS[lang][category_id] for lang in SUPPORTED_LANGS},
+        risks={lang: RISK_TEMPLATES[lang][category_id] for lang in SUPPORTED_LANGS},
+        next_steps={lang: STEP_TEMPLATES[lang][category_id] for lang in SUPPORTED_LANGS},
+    )
+    for category_id in CATEGORY_LABELS[DEFAULT_LANG]
+}
+
+
+def category_label(category: str, lang: str = DEFAULT_LANG) -> str:
+    """Return a localized category label, falling back to the category id."""
+    metadata = CATEGORY_CATALOG.get(category)
+    if metadata is None:
+        return category
+    resolved = resolve_lang(lang)
+    return metadata.labels.get(resolved, metadata.labels[DEFAULT_LANG])
+
+
+def category_risk(category: str, lang: str = DEFAULT_LANG) -> Optional[str]:
+    """Return the localized summary risk for a category."""
+    metadata = CATEGORY_CATALOG.get(category)
+    if metadata is None:
+        return None
+    resolved = resolve_lang(lang)
+    return metadata.risks.get(resolved, metadata.risks[DEFAULT_LANG])
+
+
+def category_next_step(category: str, lang: str = DEFAULT_LANG) -> Optional[str]:
+    """Return the localized next step for a category."""
+    metadata = CATEGORY_CATALOG.get(category)
+    if metadata is None:
+        return None
+    resolved = resolve_lang(lang)
+    return metadata.next_steps.get(resolved, metadata.next_steps[DEFAULT_LANG])
 
 
 # ── Recommendation reasons ───────────────────────────────────────

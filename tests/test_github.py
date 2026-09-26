@@ -208,7 +208,7 @@ class TestGitHubWebhookRoute:
             "GITHUB_WEBHOOK_SECRET": self.WEBHOOK_SECRET,
             "GITHUB_TOKEN": "",
         }):
-            with patch("app.fetch_pr_diff", return_value=sample_diff):
+            with patch("code_review_coach.web.fetch_pr_diff", return_value=sample_diff):
                 resp = client.post(
                     "/webhook/github",
                     data=payload,

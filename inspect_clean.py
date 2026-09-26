@@ -3,7 +3,7 @@ import sys, os, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from analyzer.engine import analyze_diff, result_to_dict
-from demos.demo_clean import DEMO_CLEAN
+from code_review_coach.demos.demo_clean import DEMO_CLEAN
 
 result = analyze_diff(DEMO_CLEAN)
 d = result_to_dict(result)

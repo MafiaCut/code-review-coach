@@ -3,17 +3,15 @@ Review engine: orchestrates parsing, rule execution, and summary generation.
 """
 from __future__ import annotations
 
-import inspect
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import List, Dict, Any
 
 from .i18n import (
-    RISK_TEMPLATES, STEP_TEMPLATES, NO_ISSUES, NORMAL_REVIEW,
-    get_rec_reason, translate_finding, resolve_lang,
+    NO_ISSUES, NORMAL_REVIEW, category_label, category_next_step,
+    category_risk, get_rec_reason, translate_finding, resolve_lang,
 )
-from .parser import parse_diff, filter_supported
-from .rules import ALL_RULES, FileContext, Finding, SEVERITY_ORDER, DiffLine
+from .parser import DiffDocument, parse_diff_document, filter_supported
+from .rules import RULE_REGISTRY, FileContext, Finding, SEVERITY_ORDER
 
 
 @dataclass
@@ -47,9 +45,6 @@ def _build_summary(findings: List[Finding], lang: str = "en") -> ReviewSummary:
         by_severity[f.severity] = by_severity.get(f.severity, 0) + 1
         by_category[f.category] = by_category.get(f.category, 0) + 1
 
-    risks = RISK_TEMPLATES.get(lang, RISK_TEMPLATES["en"])
-    steps = STEP_TEMPLATES.get(lang, STEP_TEMPLATES["en"])
-
     seen_cats: set = set()
     main_risks: List[str] = []
     next_steps: List[str] = []
@@ -58,8 +53,8 @@ def _build_summary(findings: List[Finding], lang: str = "en") -> ReviewSummary:
     for f in sorted_findings:
         if f.category not in seen_cats:
             seen_cats.add(f.category)
-            risk = risks.get(f.category)
-            step = steps.get(f.category)
+            risk = category_risk(f.category, lang)
+            step = category_next_step(f.category, lang)
             if risk:
                 main_risks.append(risk)
             if step:
@@ -104,12 +99,15 @@ def _build_summary(findings: List[Finding], lang: str = "en") -> ReviewSummary:
 # Public entry point
 # ─────────────────────────────────────────────
 
-def _build_file_contexts(lines: List[DiffLine]) -> Dict[str, FileContext]:
-    """Group lines by filename and wrap each group in a FileContext."""
-    groups: Dict[str, List[DiffLine]] = defaultdict(list)
-    for dl in lines:
-        groups[dl.filename].append(dl)
-    return {fname: FileContext(flines) for fname, flines in groups.items()}
+def _build_file_contexts(document: DiffDocument) -> Dict[tuple, FileContext]:
+    """Build an isolated context for every supported hunk in the diff."""
+    contexts: Dict[tuple, FileContext] = {}
+    for hunk in document.hunks:
+        supported = filter_supported(hunk.lines)
+        context = FileContext(supported)
+        if context.added_lines:
+            contexts[(hunk.filename, hunk.hunk_id)] = context
+    return contexts
 
 
 def analyze_diff(diff_text: str, lang: str = "en") -> ReviewResult:
@@ -119,19 +117,18 @@ def analyze_diff(diff_text: str, lang: str = "en") -> ReviewResult:
     lang: 'en' (default) or 'es' — controls all human-readable output.
     """
     lang = resolve_lang(lang)
-    all_lines = parse_diff(diff_text)
-    supported_lines = filter_supported(all_lines)
+    document = parse_diff_document(diff_text)
+    supported_lines = filter_supported(document.added_lines)
 
-    file_contexts = _build_file_contexts(supported_lines)
+    file_contexts = _build_file_contexts(document)
 
     findings: List[Finding] = []
-    for rule in ALL_RULES:
-        sig = inspect.signature(rule)
-        if "ctx" in sig.parameters:
-            for fname, ctx in file_contexts.items():
-                findings.extend(rule(list(ctx), ctx=ctx))
+    for rule in RULE_REGISTRY:
+        if rule.requires_context:
+            for ctx in file_contexts.values():
+                findings.extend(rule.run(ctx.added_lines, ctx=ctx))
         else:
-            findings.extend(rule(supported_lines))
+            findings.extend(rule.run(supported_lines))
 
     deduped: Dict[tuple, Finding] = {}
     for f in findings:
@@ -163,6 +160,7 @@ def result_to_dict(result: ReviewResult, lang: str = "en") -> Dict[str, Any]:
             {
                 "severity": f.severity,
                 "category": f.category,
+                "category_label": category_label(f.category, lang),
                 "filename": f.filename,
                 "line_number": f.line_number,
                 "explanation": translate_finding(f.category, f.explanation, f.recommended_fix, lang)[0],

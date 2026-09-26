@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-app="code-review-coach">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -507,31 +507,6 @@ const UI_STRINGS = {
   },
 };
 
-const CATEGORY_LABELS_JS = {
-  en: {
-    secrets:                   'Exposed Secret',
-    unsafe_input:              'Unsafe Input',
-    error_handling:            'Error Handling',
-    likely_bug:                'Likely Bug',
-    weak_tests:                'Weak Tests',
-    logging_sensitive:         'Sensitive Logging',
-    dangerous_deserialization: 'Dangerous Deserialization',
-    path_traversal:            'Path Traversal',
-    insecure_dependency:       'Insecure Dependency',
-  },
-  es: {
-    secrets:                   'Secreto expuesto',
-    unsafe_input:              'Entrada no segura',
-    error_handling:            'Manejo de errores',
-    likely_bug:                'Posible error',
-    weak_tests:                'Pruebas d\u00e9biles',
-    logging_sensitive:         'Datos sensibles en logs',
-    dangerous_deserialization: 'Deserializaci\u00f3n peligrosa',
-    path_traversal:            'Traversal de rutas',
-    insecure_dependency:       'Dependencia insegura',
-  },
-};
-
 function setLang(lang) {
   if (lang === currentLang) return;
   currentLang = lang;
@@ -685,7 +660,6 @@ function renderSummary(s, data) {
 
 function renderFindings(findings) {
   const ui = UI_STRINGS[currentLang] || UI_STRINGS['en'];
-  const catLabels = CATEGORY_LABELS_JS[currentLang] || CATEGORY_LABELS_JS['en'];
   const filtered = currentTab === 'all' ? findings
     : currentTab === 'low' ? findings.filter(f => f.severity === 'low' || f.severity === 'info')
     : findings.filter(f => f.severity === currentTab);
@@ -708,7 +682,7 @@ function renderFindings(findings) {
       <div class="finding">
         <div class="finding-header">
           <span class="badge badge-${f.severity}">${f.severity}</span>
-          <span class="cat-label">${escHtml(catLabels[f.category] || f.category)}</span>
+          <span class="cat-label">${escHtml(f.category_label || f.category)}</span>
           <span class="finding-loc">${escHtml(f.filename)}${f.line_number ? ':' + f.line_number : ''}</span>
         </div>
         <div class="finding-body">

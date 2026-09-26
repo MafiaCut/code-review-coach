@@ -23,11 +23,14 @@ SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
 @dataclass
 class DiffLine:
-    """A single added line from a unified diff."""
+    """A line in a unified-diff hunk."""
     filename: str
-    line_number: int          # line number in the new file (None if unknown)
-    content: str              # raw line content (without the leading '+')
+    line_number: Optional[int]  # line number in the new file (None for removals)
+    content: str              # raw line content (without the diff marker)
     language: str             # 'python' | 'javascript' | 'typescript' | 'unknown'
+    kind: str = "added"       # added | context | removed
+    old_line_number: Optional[int] = None
+    hunk_id: int = 0
 
 
 @dataclass
@@ -41,34 +44,56 @@ class Finding:
     matched_text: str = ""    # the snippet that triggered the rule
 
 
+@dataclass(frozen=True)
+class RuleSpec:
+    """Metadata and invocation requirements for one analysis rule."""
+
+    rule_id: str
+    category: str
+    run: Callable[..., List[Finding]]
+    requires_context: bool = False
+
+
 # ─────────────────────────────────────────────
 # Context window
 # ─────────────────────────────────────────────
 
 class FileContext:
     """
-    Ordered list of added DiffLines for a single file, with a helper that
+    Ordered list of DiffLines for a single diff hunk, with helpers that
     returns the raw content strings of lines immediately following a given
     index — enabling multi-line lookahead without executing any code.
     """
     def __init__(self, lines: List[DiffLine]) -> None:
         self._lines = lines
+        self._added_positions = [i for i, line in enumerate(lines) if line.kind == "added"]
 
     def __iter__(self):
-        return iter(self._lines)
+        return iter(self.added_lines)
 
     def __len__(self):
-        return len(self._lines)
+        return len(self._added_positions)
+
+    @property
+    def added_lines(self) -> List[DiffLine]:
+        """Return only added lines; analysis rules must not report unchanged code."""
+        return [self._lines[i] for i in self._added_positions]
+
+    def _full_position(self, added_idx: int) -> int:
+        """Map an index in ``added_lines`` to its position in the full hunk."""
+        return self._added_positions[added_idx]
 
     def next_contents(self, idx: int, window: int = 3) -> List[str]:
         """Return the content strings of up to `window` lines after index idx."""
-        end = min(idx + 1 + window, len(self._lines))
-        return [self._lines[i].content for i in range(idx + 1, end)]
+        pos = self._full_position(idx)
+        end = min(pos + 1 + window, len(self._lines))
+        return [self._lines[i].content for i in range(pos + 1, end)]
 
     def prev_contents(self, idx: int, window: int = 3) -> List[str]:
         """Return the content strings of up to `window` lines before index idx."""
-        start = max(0, idx - window)
-        return [self._lines[i].content for i in range(start, idx)]
+        pos = self._full_position(idx)
+        start = max(0, pos - window)
+        return [self._lines[i].content for i in range(start, pos)]
 
 
 # ─────────────────────────────────────────────
@@ -872,14 +897,21 @@ def rule_insecure_dependency(lines: List[DiffLine]) -> List[Finding]:
 # Rule registry
 # ─────────────────────────────────────────────
 
-ALL_RULES: List[Callable[[List[DiffLine]], List[Finding]]] = [
-    rule_exposed_secrets,
-    rule_unsafe_input,
-    rule_error_handling,
-    rule_likely_bugs,
-    rule_weak_tests,
-    rule_logging_sensitive,
-    rule_dangerous_deserialization,
-    rule_path_traversal,
-    rule_insecure_dependency,
-]
+RULE_REGISTRY = (
+    RuleSpec("exposed-secrets", "secrets", rule_exposed_secrets),
+    RuleSpec("unsafe-input", "unsafe_input", rule_unsafe_input, requires_context=True),
+    RuleSpec("error-handling", "error_handling", rule_error_handling, requires_context=True),
+    RuleSpec("likely-bugs", "likely_bug", rule_likely_bugs),
+    RuleSpec("weak-tests", "weak_tests", rule_weak_tests),
+    RuleSpec("sensitive-logging", "logging_sensitive", rule_logging_sensitive),
+    RuleSpec(
+        "dangerous-deserialization",
+        "dangerous_deserialization",
+        rule_dangerous_deserialization,
+    ),
+    RuleSpec("path-traversal", "path_traversal", rule_path_traversal),
+    RuleSpec("insecure-dependency", "insecure_dependency", rule_insecure_dependency),
+)
+
+# Backward-compatible function list for integrations that imported it directly.
+ALL_RULES = [spec.run for spec in RULE_REGISTRY]

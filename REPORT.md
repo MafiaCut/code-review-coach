@@ -6,11 +6,11 @@ A fully working, locally-runnable code review prototype consisting of:
 
 | Component | File(s) | Description |
 |-----------|---------|-------------|
-| Analysis engine | `analyzer/rules.py`, `analyzer/engine.py`, `analyzer/parser.py` | Pure regex-based static analysis; 5 rule categories; never executes submitted code |
-| Flask API | `app.py`, `run.py` | 3 JSON endpoints; 500 KB diff size guard; serializable results |
-| Single-page UI | `static/index.html` | Demo loader, severity tabs, findings list, review summary, elapsed-time display |
-| Demo inputs | `demos/demo_dirty.py`, `demos/demo_clean.py` | Two synthetic diffs — one with 14 findings, one with 0 |
-| Tests | `tests/test_analysis.py` | 49 unit + integration tests |
+| Analysis engine | `analyzer/rules.py`, `analyzer/engine.py`, `analyzer/parser.py` | Hunk-aware static analysis across 9 rule categories; never executes submitted code |
+| Flask API | `code_review_coach/web.py` | Packaged API and webhook service with a 500 KB diff size guard |
+| Single-page UI | `code_review_coach/static/index.html` | Bundled demo loader, severity tabs, findings list, and review summary |
+| Demo inputs | `code_review_coach/demos/` | Two bundled synthetic diffs |
+| Tests | `tests/` | Unit, integration, localization, CLI, webhook, and packaging tests |
 | Docs | `README.md`, `evidence/README.md` | Setup, run instructions, API reference, demo script, limitations |
 
 ---
@@ -19,8 +19,8 @@ A fully working, locally-runnable code review prototype consisting of:
 
 ```bash
 cd code-review-coach
-python -m pip install -r requirements.txt   # flask, pytest (already installed)
-python run.py                               # starts server on http://localhost:5000
+python -m pip install -e ".[web]"
+review-coach-web                            # starts server on http://localhost:5000
 ```
 
 Then open [http://localhost:5000](http://localhost:5000) in a browser.
@@ -99,26 +99,23 @@ Screenshots must be captured manually from the Bob IDE. Instructions and a namin
 
 ```
 code-review-coach/
-├── app.py
-├── run.py
-├── smoke_test.py
-├── requirements.txt
+├── app.py, cli.py, run.py      # compatibility launchers
+├── pyproject.toml
 ├── README.md
-├── REPORT.md                  ← this file
+├── REPORT.md
+├── code_review_coach/
+│   ├── cli.py
+│   ├── web.py
+│   ├── demos/
+│   └── static/index.html
 ├── analyzer/
 │   ├── __init__.py
 │   ├── engine.py
 │   ├── parser.py
-│   └── rules.py
-├── demos/
-│   ├── __init__.py
-│   ├── demo_clean.py
-│   └── demo_dirty.py
-├── static/
-│   └── index.html
+│   ├── rules.py
+│   └── i18n.py
 ├── tests/
-│   ├── __init__.py
-│   └── test_analysis.py
+│   └── test_*.py
 └── evidence/
     └── README.md
 ```

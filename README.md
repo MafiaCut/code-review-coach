@@ -23,7 +23,7 @@ cd code-review-coach
 python -m pip install -e ".[web]"
 ```
 
-This installs the `review-coach` command. For CLI-only use, omit the `web`
+This installs the `review-coach` and `review-coach-web` commands. For CLI-only use, omit the `web`
 extra: `python -m pip install -e .`. You can also install the CLI directly
 from GitHub with:
 
@@ -34,7 +34,7 @@ python -m pip install "git+https://github.com/MafiaCut/code-review-coach.git"
 ### Run the server
 
 ```bash
-python app.py
+review-coach-web
 ```
 
 Open [http://localhost:5000](http://localhost:5000) in your browser.
@@ -74,12 +74,16 @@ file cannot be read.
 
 ```
 code-review-coach/
-├── app.py                  Flask application (API + static serving)
-├── cli.py                  Command-line implementation
-├── pyproject.toml          Package metadata and review-coach entry point
+├── app.py                  Backward-compatible web launcher
+├── cli.py                  Backward-compatible CLI launcher
+├── pyproject.toml          Package metadata and command entry points
 ├── requirements.txt       Runtime dependencies
 ├── requirements-dev.txt   Test, coverage, and lint tools
-├── code_review_coach/     Installable package entry point
+├── code_review_coach/     Installable application package
+│   ├── cli.py              Packaged command-line interface
+│   ├── web.py              Packaged Flask application
+│   ├── demos/              Bundled synthetic examples
+│   └── static/index.html   Bundled single-page UI
 ├── analyzer/
 │   ├── __init__.py
 │   ├── rules.py            All analysis rules (9 categories)
@@ -88,11 +92,6 @@ code-review-coach/
 │   ├── github.py           GitHub webhook integration
 │   ├── i18n.py             English and Spanish output
 │   └── llm.py              Optional LLM summary enhancement
-├── demos/
-│   ├── demo_dirty.py       Demo 1 – auth service with many issues
-│   └── demo_clean.py       Demo 2 – utility formatter (clean)
-├── static/
-│   └── index.html          Single-page UI
 ├── tests/
 │   └── test_*.py           Unit and integration tests
 ├── .github/workflows/      CI and dependency audit
