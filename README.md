@@ -275,6 +275,12 @@ and the response exposes `llm_enhanced` to indicate whether enhancement ran.
 
 ---
 
+## License
+
+Code Review Coach is released under the [MIT License](LICENSE).
+
+---
+
 ## Bob IDE evidence
 
 Screenshots of Bob Agent sessions are stored in [`evidence/`](evidence/). See [`evidence/README.md`](evidence/README.md) for the full list of sessions to capture and naming conventions.
