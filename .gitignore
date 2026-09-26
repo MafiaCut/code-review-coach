@@ -21,3 +21,8 @@ Thumbs.db
 .coverage
 htmlcov/
 coverage.xml
+
+# Build and packaging outputs
+build/
+dist/
+*.egg-info/

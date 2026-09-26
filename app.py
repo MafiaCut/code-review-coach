@@ -9,7 +9,6 @@ Exposes a minimal JSON API:
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import time
@@ -113,12 +112,15 @@ def github_webhook():
     of being posted to GitHub (graceful degradation).
     """
     # ── Validate HMAC signature ──────────────────────────────────────────────
-    webhook_secret = os.environ.get("GITHUB_WEBHOOK_SECRET", "")
-    if webhook_secret:
-        sig = request.headers.get("X-Hub-Signature-256", "")
-        if not verify_signature(request.data, webhook_secret, sig):
-            logger.warning("GitHub webhook: invalid HMAC signature")
-            return jsonify({"error": "Invalid signature."}), 403
+    webhook_secret = os.environ.get("GITHUB_WEBHOOK_SECRET", "").strip()
+    if not webhook_secret:
+        logger.error("GitHub webhook disabled: GITHUB_WEBHOOK_SECRET is not configured")
+        return jsonify({"error": "GitHub webhook is not configured."}), 503
+
+    sig = request.headers.get("X-Hub-Signature-256", "")
+    if not verify_signature(request.data, webhook_secret, sig):
+        logger.warning("GitHub webhook: invalid HMAC signature")
+        return jsonify({"error": "Invalid signature."}), 403
 
     # ── Parse event type ────────────────────────────────────────────────────
     event_type = request.headers.get("X-GitHub-Event", "")

@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from typing import Optional
 
-from .engine import ReviewResult, result_to_dict
+from .engine import ReviewResult
 
 logger = logging.getLogger(__name__)
 

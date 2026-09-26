@@ -6,6 +6,8 @@ correct behavior with --input and --format flags.
 import sys, os, json, subprocess, tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from code_review_coach import __version__
+
 CLI = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cli.py")
 
 DIRTY_DIFF = """\
@@ -113,7 +115,7 @@ class TestCLIVersion:
     def test_version_flag(self):
         code, out, _ = run_cli("--version")
         assert code == 0
-        assert "1.0.0" in out
+        assert __version__ in out
 
 
 class TestCLISpanish:

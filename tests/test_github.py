@@ -148,14 +148,29 @@ class TestGitHubWebhookRoute:
             )
         assert resp.status_code == 403
 
-    def test_non_pr_event_ignored(self):
+    def test_missing_webhook_secret_disables_endpoint(self):
         client = self._get_client()
         with patch.dict(os.environ, {"GITHUB_WEBHOOK_SECRET": ""}):
             resp = client.post(
                 "/webhook/github",
-                data=b'{}',
+                data=self._make_payload(),
                 content_type="application/json",
-                headers={"X-GitHub-Event": "push"},
+                headers={"X-GitHub-Event": "pull_request"},
+            )
+        assert resp.status_code == 503
+
+    def test_non_pr_event_ignored(self):
+        client = self._get_client()
+        payload = b'{}'
+        with patch.dict(os.environ, {"GITHUB_WEBHOOK_SECRET": self.WEBHOOK_SECRET}):
+            resp = client.post(
+                "/webhook/github",
+                data=payload,
+                content_type="application/json",
+                headers={
+                    "X-GitHub-Event": "push",
+                    "X-Hub-Signature-256": self._sign(payload),
+                },
             )
         assert resp.status_code == 200
         assert resp.get_json()["status"] == "ignored"
@@ -163,12 +178,15 @@ class TestGitHubWebhookRoute:
     def test_pr_action_closed_ignored(self):
         client = self._get_client()
         payload = self._make_payload(action="closed")
-        with patch.dict(os.environ, {"GITHUB_WEBHOOK_SECRET": ""}):
+        with patch.dict(os.environ, {"GITHUB_WEBHOOK_SECRET": self.WEBHOOK_SECRET}):
             resp = client.post(
                 "/webhook/github",
                 data=payload,
                 content_type="application/json",
-                headers={"X-GitHub-Event": "pull_request"},
+                headers={
+                    "X-GitHub-Event": "pull_request",
+                    "X-Hub-Signature-256": self._sign(payload),
+                },
             )
         assert resp.status_code == 200
         assert resp.get_json()["status"] == "ignored"
@@ -186,13 +204,19 @@ class TestGitHubWebhookRoute:
         mock_resp.__exit__ = MagicMock(return_value=False)
         mock_resp.read.return_value = sample_diff.encode()
 
-        with patch.dict(os.environ, {"GITHUB_WEBHOOK_SECRET": "", "GITHUB_TOKEN": ""}):
+        with patch.dict(os.environ, {
+            "GITHUB_WEBHOOK_SECRET": self.WEBHOOK_SECRET,
+            "GITHUB_TOKEN": "",
+        }):
             with patch("app.fetch_pr_diff", return_value=sample_diff):
                 resp = client.post(
                     "/webhook/github",
                     data=payload,
                     content_type="application/json",
-                    headers={"X-GitHub-Event": "pull_request"},
+                    headers={
+                        "X-GitHub-Event": "pull_request",
+                        "X-Hub-Signature-256": self._sign(payload),
+                    },
                 )
         assert resp.status_code == 200
         data = resp.get_json()

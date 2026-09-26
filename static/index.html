@@ -533,6 +533,7 @@ const CATEGORY_LABELS_JS = {
 };
 
 function setLang(lang) {
+  if (lang === currentLang) return;
   currentLang = lang;
   document.getElementById('langBtnEn').classList.toggle('active', lang === 'en');
   document.getElementById('langBtnEs').classList.toggle('active', lang === 'es');
@@ -552,9 +553,9 @@ function setLang(lang) {
   document.getElementById('loadingMsg').textContent       = s.loadingMsg;
   document.getElementById('emptyStateMain').innerHTML     = s.emptyStateMain;
   document.getElementById('emptyStateSub').textContent    = s.emptyStateSub;
-  // Re-render results in new language if visible
+  // Request translated findings and summary when results are already visible.
   if (currentFindings.length || document.getElementById('results').style.display !== 'none') {
-    renderFindings(currentFindings);
+    runAnalysis();
   }
 }
 
@@ -604,6 +605,7 @@ function clearAll() {
 async function runAnalysis() {
   const diff = document.getElementById('diffInput').value.trim();
   if (!diff) { showToast(currentLang === 'es' ? 'Por favor pega un diff primero.' : 'Please paste a diff first.'); return; }
+  const requestedLang = currentLang;
 
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('results').style.display = 'none';
@@ -614,10 +616,12 @@ async function runAnalysis() {
     const res = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ diff, lang: currentLang }),
+      body: JSON.stringify({ diff, lang: requestedLang }),
     });
     const data = await res.json();
     if (!res.ok) { showToast(data.error || 'Analysis failed'); return; }
+    // Ignore a stale response if the user changed languages during the request.
+    if (requestedLang !== currentLang) return;
     renderResults(data);
   } catch(e) {
     showToast('Network error: ' + e.message);

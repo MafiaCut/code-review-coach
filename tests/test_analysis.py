@@ -637,6 +637,18 @@ class TestInsecureDependency:
         findings = rule_insecure_dependency([req_line('Flask==2.0.0')])
         assert len(findings) == 1
 
+    def test_safe_two_part_version_is_normalized(self):
+        findings = rule_insecure_dependency([req_line('Flask==2.3')])
+        assert len(findings) == 0
+
+    def test_vulnerable_less_than_constraint(self):
+        findings = rule_insecure_dependency([req_line('requests<2.20')])
+        assert len(findings) == 1
+
+    def test_safe_two_part_requests_version(self):
+        findings = rule_insecure_dependency([req_line('requests==2.20')])
+        assert len(findings) == 0
+
     def test_requirements_gte_operator_not_flagged(self):
         # >= constraint means they want at least this version — not a pin
         findings = rule_insecure_dependency([req_line('requests>=2.18.0')])

@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass, field
-from typing import Callable, List, Optional, Sequence
+from dataclasses import dataclass
+from typing import Callable, List, Optional
+
+from packaging.version import InvalidVersion, Version
 
 
 # ─────────────────────────────────────────────
@@ -776,13 +778,23 @@ _PINNED_VERSION_JS = re.compile(
 )
 
 
-def _parse_version(ver_str: str) -> tuple:
-    """Parse 'X.Y.Z' or 'X.Y' into an integer tuple for comparison."""
-    parts = ver_str.split(".")
+def _parse_version(ver_str: str) -> Optional[Version]:
+    """Parse a PEP 440 version, normalizing equivalent forms such as 2.3/2.3.0."""
     try:
-        return tuple(int(p) for p in parts[:3])
-    except ValueError:
-        return (0,)
+        return Version(ver_str)
+    except InvalidVersion:
+        return None
+
+
+def _constraint_allows_vulnerable(operator: str, version: Version, safe: Version) -> bool:
+    """Return whether a supported requirement constraint admits vulnerable versions."""
+    if operator == "==":
+        return version < safe
+    if operator in ("<", "<="):
+        return version <= safe
+    if operator == "~=":
+        return version < safe
+    return False
 
 
 def rule_insecure_dependency(lines: List[DiffLine]) -> List[Finding]:
@@ -803,9 +815,12 @@ def rule_insecure_dependency(lines: List[DiffLine]) -> List[Finding]:
             pkg_name = m.group(1).lower().replace("-", "_").replace(".", "_")
             operator = m.group(2)
             version = _parse_version(m.group(3))
+            if version is None:
+                continue
             for vuln_pkg, max_safe, note in _VULN_PACKAGES:
                 norm = vuln_pkg.lower().replace("-", "_").replace(".", "_")
-                if pkg_name == norm and operator in ("==", "<=") and version < max_safe:
+                safe_version = Version(".".join(str(x) for x in max_safe))
+                if pkg_name == norm and _constraint_allows_vulnerable(operator, version, safe_version):
                     findings.append(Finding(
                         severity="high",
                         category="insecure_dependency",
@@ -828,9 +843,12 @@ def rule_insecure_dependency(lines: List[DiffLine]) -> List[Finding]:
             for m in _PINNED_VERSION_JS.finditer(dl.content):
                 pkg_name = m.group(1).split("/")[-1].lower().replace("-", "_")
                 version = _parse_version(m.group(2))
+                if version is None:
+                    continue
                 for vuln_pkg, max_safe, note in _VULN_PACKAGES:
                     norm = vuln_pkg.lower().replace("-", "_")
-                    if pkg_name == norm and version < max_safe:
+                    safe_version = Version(".".join(str(x) for x in max_safe))
+                    if pkg_name == norm and version < safe_version:
                         findings.append(Finding(
                             severity="high",
                             category="insecure_dependency",

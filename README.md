@@ -2,6 +2,8 @@
 
 **IBM Bob Hackathon Prototype**
 
+[![CI](https://github.com/MafiaCut/code-review-coach/actions/workflows/ci.yml/badge.svg)](https://github.com/MafiaCut/code-review-coach/actions/workflows/ci.yml)
+
 A locally-runnable static-analysis tool that accepts a Git diff, identifies actionable security and quality issues, explains why each finding matters, recommends concrete fixes, and produces a concise review summary — all without executing any submitted code and without requiring any API keys or paid services.
 
 ---
@@ -10,14 +12,23 @@ A locally-runnable static-analysis tool that accepts a Git diff, identifies acti
 
 ### Prerequisites
 
-- Python 3.9 or later (tested on 3.14)
-- Flask and pytest
+- Python 3.9 or later (tested through Python 3.14)
+- Git
 
-### Install dependencies
+### Install the tool
 
 ```bash
+git clone https://github.com/MafiaCut/code-review-coach.git
 cd code-review-coach
-python -m pip install -r requirements.txt
+python -m pip install -e ".[web]"
+```
+
+This installs the `review-coach` command. For CLI-only use, omit the `web`
+extra: `python -m pip install -e .`. You can also install the CLI directly
+from GitHub with:
+
+```bash
+python -m pip install "git+https://github.com/MafiaCut/code-review-coach.git"
 ```
 
 ### Run the server
@@ -31,10 +42,12 @@ Open [http://localhost:5000](http://localhost:5000) in your browser.
 ### Run tests
 
 ```bash
+python -m pip install -e ".[dev,web]"
 python -m pytest tests/ -v
 ```
 
-Expected output: **167 passed** in a few seconds.
+The exact test count changes as coverage grows; the CI badge shows the current
+status on every push and pull request.
 
 ---
 
@@ -44,9 +57,10 @@ Analyze a diff from standard input, a file, or a CI pipeline without starting
 the web server:
 
 ```bash
-git diff HEAD~1 | python cli.py --format summary
-python cli.py --input change.patch --format text
-python cli.py --input change.patch --format json --lang es
+git diff HEAD~1 | review-coach --format summary
+review-coach --input change.patch --format text
+review-coach --input change.patch --format json --lang es
+python -m code_review_coach --version
 ```
 
 `--format` accepts `text` (default), `json`, and `summary`. `--lang` accepts
@@ -61,19 +75,27 @@ file cannot be read.
 ```
 code-review-coach/
 ├── app.py                  Flask application (API + static serving)
-├── requirements.txt
+├── cli.py                  Command-line implementation
+├── pyproject.toml          Package metadata and review-coach entry point
+├── requirements.txt       Runtime dependencies
+├── requirements-dev.txt   Test, coverage, and lint tools
+├── code_review_coach/     Installable package entry point
 ├── analyzer/
 │   ├── __init__.py
-│   ├── rules.py            All analysis rules (5 categories)
+│   ├── rules.py            All analysis rules (9 categories)
 │   ├── parser.py           Unified diff parser
-│   └── engine.py           Orchestration + summary generation
+│   ├── engine.py           Orchestration + summary generation
+│   ├── github.py           GitHub webhook integration
+│   ├── i18n.py             English and Spanish output
+│   └── llm.py              Optional LLM summary enhancement
 ├── demos/
 │   ├── demo_dirty.py       Demo 1 – auth service with many issues
 │   └── demo_clean.py       Demo 2 – utility formatter (clean)
 ├── static/
 │   └── index.html          Single-page UI
 ├── tests/
-│   └── test_analysis.py    47 unit + integration tests
+│   └── test_*.py           Unit and integration tests
+├── .github/workflows/      CI and dependency audit
 └── evidence/
     └── README.md           Instructions for Bob IDE screenshots
 ```
@@ -96,6 +118,10 @@ code-review-coach/
 | **Error handling** | Bare `except:`, overly broad `except Exception:`, HTTP responses without `raise_for_status()`, empty JS `catch {}` |
 | **Likely bugs** | `is` comparisons to non-singletons, mutable default arguments, float equality, loose JS `==` operator |
 | **Weak tests** | `assert True` no-ops, TODO comment placeholders inside test files |
+| **Sensitive logging** | Passwords, tokens, secrets, or credentials written to logs |
+| **Dangerous deserialization** | Unsafe pickle, YAML, and JavaScript deserialization |
+| **Path traversal** | Request-derived paths passed to file operations |
+| **Insecure dependencies** | Vulnerable versions in `requirements.txt` and `package.json` |
 
 ---
 
@@ -205,6 +231,7 @@ GITHUB_TOKEN=<token with pull-request review permission>
 The endpoint verifies `X-Hub-Signature-256`, fetches the PR diff, analyzes it,
 and posts a review with inline comments. For local testing, expose the server
 with a tunnel such as ngrok and use its HTTPS URL as the GitHub webhook URL.
+Requests fail closed with HTTP 503 when `GITHUB_WEBHOOK_SECRET` is not set.
 If `GITHUB_TOKEN` is absent, it returns the analysis JSON without posting a
 review. Never commit either secret.
 

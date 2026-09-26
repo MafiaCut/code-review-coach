@@ -22,14 +22,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from analyzer.engine import analyze_diff, result_to_dict, ReviewResult
 from analyzer.i18n import resolve_lang, CATEGORY_LABELS
+from code_review_coach import __version__
 
-VERSION = "1.0.0"
+VERSION = __version__
 
 # ── ANSI colour helpers ──────────────────────────────────────────────────────
 
 def _use_colour() -> bool:
-    return sys.stdout.isatty() and os.name != "nt" or (
-        os.name == "nt" and os.environ.get("TERM") is not None
+    return sys.stdout.isatty() and (
+        os.name != "nt" or os.environ.get("TERM") is not None
     )
 
 _RESET  = "\033[0m"
