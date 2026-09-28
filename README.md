@@ -31,13 +31,47 @@ from GitHub with:
 python -m pip install "git+https://github.com/MafiaCut/code-review-coach.git"
 ```
 
-### Run the server
+### Start the web coach
+
+Run the server from the project directory and keep the terminal window open
+while using the application:
 
 ```bash
 review-coach-web
 ```
 
-Open [http://localhost:5000](http://localhost:5000) in your browser.
+When the terminal reports that the server is running, open
+[http://127.0.0.1:5000/](http://127.0.0.1:5000/) in a browser. The trailing
+slash is intentional.
+
+On Windows, if the `review-coach-web` command is not available in the current
+terminal, use the Python launcher instead:
+
+```powershell
+py app.py
+```
+
+Press `Ctrl+C` in that terminal to stop the server when you are finished.
+
+#### Troubleshooting the web start
+
+If the browser displays **Not Found** at port 5000, another local application
+may be responding on that port. Stop the current server with `Ctrl+C`, then
+start Code Review Coach on port 5050:
+
+```powershell
+py -c "from code_review_coach.web import app; app.run(host='127.0.0.1', port=5050, debug=False)"
+```
+
+Open [http://127.0.0.1:5050/](http://127.0.0.1:5050/) and leave the terminal
+running. Do not use a different application at the same address and port.
+
+If Python reports that Flask is missing, install the web dependencies and try
+again:
+
+```bash
+python -m pip install -e ".[web]"
+```
 
 ### Run tests
 
